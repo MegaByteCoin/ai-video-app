@@ -1,1 +1,171 @@
 
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Studio</title>
+    <script src="https://telegram.org"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .card {
+            background: #1e1e1e;
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h2 { margin-top: 0; font-size: 20px; }
+        .upload-box {
+            border: 2px dashed #444;
+            border-radius: 12px;
+            padding: 25px 15px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .upload-box:hover { border-color: #2ea6ff; }
+        .chars {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+        .char-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #333;
+            background: #2a2a2a;
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .char-btn.active { border-color: #2ea6ff; background: #1c3b57; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-primary { background: #2ea6ff; color: white; }
+        .btn-primary:disabled { background: #555; cursor: not-allowed; }
+        .btn-success { background: #28a745; color: white; display: none; text-decoration: none; box-sizing: border-box; }
+        video { width: 100%; border-radius: 12px; margin-top: 15px; display: none; }
+        .status { margin-top: 10px; font-size: 14px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🎬 AI Видеоредактор</h2>
+        
+        <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+            <span id="fileName">📁 Нажми, чтобы загрузить видео</span>
+            <input type="file" id="fileInput" accept="video/*" style="display: none;" onchange="fileSelected()">
+        </div>
+
+        <div class="chars">
+            <button class="char-btn active" onclick="selectChar('cat', this)">🐱 Кот</button>
+            <button class="char-btn" onclick="selectChar('dog', this)">🐶 Собака</button>
+        </div>
+
+        <button class="btn btn-primary" id="genBtn" onclick="processVideo()" disabled>✨ Создать видео</button>
+        
+        <div class="status" id="statusText"></div>
+        <video id="resultVideo" controls playsinline></video>
+        <a id="downloadBtn" class="btn btn-success" download="ai_video.mp4">⬇️ Скачать видео</a>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        
+        // Сюда на следующем шаге вставим ссылку на Modal
+        const MODAL_API_URL = ""; 
+
+        let selectedCharacter = 'cat';
+
+        function selectChar(char, btn) {
+            selectedCharacter = char;
+            document.querySelectorAll('.char-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function fileSelected() {
+            const file = document.getElementById('fileInput').files[0];
+            if (file) {
+                document.getElementById('fileName').innerText = "✅ " + file.name;
+                document.getElementById('genBtn').disabled = false;
+            }
+        }
+
+        async function processVideo() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+
+            const genBtn = document.getElementById('genBtn');
+            const statusText = document.getElementById('statusText');
+            const videoPlayer = document.getElementById('resultVideo');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            genBtn.disabled = true;
+            videoPlayer.style.display = 'none';
+            downloadBtn.style.display = 'none';
+
+            // Если сервер Modal ещё не подключен — тестируем интерфейс локально
+            if (!MODAL_API_URL) {
+                statusText.innerText = "⏳ Тест интерфейса (Modal пока не привязан)...";
+                setTimeout(() => {
+                    const url = URL.createObjectURL(file);
+                    videoPlayer.src = url;
+                    videoPlayer.style.display = 'block';
+                    downloadBtn.href = url;
+                    downloadBtn.style.display = 'block';
+                    statusText.innerText = "✅ Интерфейс работает! Осталось привязать Modal.";
+                    genBtn.disabled = false;
+                }, 1500);
+                return;
+            }
+
+            statusText.innerText = "⏳ Обработка на видеокарте Modal...";
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("character", selectedCharacter);
+
+            try {
+                const response = await fetch(MODAL_API_URL + "/process", { method: "POST", body: formData });
+                if (!response.ok) throw new Error("Ошибка сервера");
+                
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                
+                videoPlayer.src = url;
+                videoPlayer.style.display = 'block';
+                downloadBtn.href = url;
+                downloadBtn.style.display = 'block';
+                statusText.innerText = "✅ Готово!";
+            } catch (e) {
+                statusText.innerText = "❌ Ошибка: " + e.message;
+            } finally {
+                genBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
